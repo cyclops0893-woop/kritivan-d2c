@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Kritivan D2C Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  /* Kritivan brand system */
+  --sage:#5F7F73;          /* deep sage — primary */
+  --sage-deep:#4c6a5f;
+  --lilac:#C8A2C8;         /* dusty lilac — accent */
+  --lilac-deep:#a87aa8;
+  --terra:#C97C5D;         /* muted terracotta */
+  --terra-deep:#b0644a;
+  --charcoal:#2F2F2F;
+  /* mapped onto existing variable names used across the app */
+  --ink:#2F2F2F;           /* charcoal text / headings */
+  --ink-soft:#5C6B64;      /* muted foreground */
+  --madder:#C97C5D;        /* terracotta accent */
+  --madder-deep:#b0644a;
+  --gold:#C8A2C8;          /* repurposed: dusty-lilac accent */
+  --leaf:#5F7F73;          /* sage */
+  --cream:#F5F2EC;         /* warm off-white — background */
+  --cream-2:#E8E0D5;       /* soft beige — secondary surface */
+  --paper:#FFFFFF;         /* card */
+  --line:#DED4C5;          /* border */
+  --ok:#5F7F73;            /* positive = sage */
+  --warn:#C97C5D;
+  --shadow:0 1px 2px rgba(47,47,47,.05),0 8px 24px rgba(47,47,47,.07);
+  --radius:12px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  background:
+    radial-gradient(1200px 600px at 110% -10%, rgba(200,162,200,.10), transparent 55%),
+    radial-gradient(900px 500px at -10% 110%, rgba(93,115,85,.10), transparent 55%),
+    var(--cream);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+/* faint woven texture */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;opacity:.035;z-index:0;
+  background-image:linear-gradient(90deg,#000 1px,transparent 1px),linear-gradient(#000 1px,transparent 1px);
+  background-size:7px 7px;
+}
+.app{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 16px 120px}
+
+/* ===== SaaS app shell ===== */
+.shell{position:relative;z-index:1;display:flex;min-height:100vh}
+.sidebar{width:250px;flex:0 0 250px;background:var(--paper);color:var(--charcoal);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;border-right:1px solid var(--line)}
+.side-brand{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:20px 18px 16px;border-bottom:1px solid var(--line)}
+.side-brand .mark{width:auto;height:auto;border-radius:0;flex:none;background:none;box-shadow:none;display:block;overflow:visible;position:static}
+.side-brand .mark img{width:152px;height:auto;display:block}
+.side-brand h1{display:none}
+.side-brand .sub{font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-soft);margin-top:0;padding-left:3px;font-weight:600}
+.side-nav{display:flex;flex-direction:column;gap:3px;padding:12px 12px;flex:1;overflow-y:auto}
+.side-nav button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;border:0;background:transparent;color:var(--ink-soft);font-family:inherit;font-weight:600;font-size:14px;padding:11px 13px;border-radius:10px;cursor:pointer;transition:.15s}
+.side-nav button .ni{font-size:15px;width:20px;text-align:center;flex:0 0 20px}
+.side-nav button:hover{background:var(--cream-2);color:var(--charcoal)}
+.side-nav button.active{background:rgba(95,127,115,.12);color:var(--sage-deep);box-shadow:inset 3px 0 0 var(--sage)}
+.nav-div{font-size:9.5px;letter-spacing:.14em;color:var(--ink-soft);font-weight:700;padding:16px 13px 6px;opacity:.75}
+.side-foot{padding:13px 14px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.side-cta{width:100%;justify-content:center;display:flex;align-items:center;gap:7px}
+.side-foot .saved-pill{justify-content:center}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;padding:13px 26px;background:rgba(245,242,236,.85);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topbar .page-title{font-family:'Playfair Display';font-weight:600;font-size:20px;margin:0;flex:1;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-actions{display:flex;align-items:center;gap:12px}
+.hamb{display:none;border:1px solid var(--line);background:var(--paper);width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;color:var(--ink);flex:0 0 38px}
+.sync-dot{width:9px;height:9px;border-radius:50%;background:var(--ink-soft);box-shadow:0 0 0 3px rgba(47,47,47,.08)}
+.sync-dot.on{background:var(--sage);box-shadow:0 0 0 3px rgba(95,127,115,.2)}
+.content{padding:24px 26px 100px;max-width:1160px;width:100%}
+.content .title{margin-top:0}
+.backdrop{display:none;position:fixed;inset:0;background:rgba(47,47,47,.42);backdrop-filter:blur(2px);z-index:39}
+
+@media(max-width:960px){
+  .sidebar{position:fixed;top:0;left:0;z-index:40;transform:translateX(-100%);transition:transform .28s cubic-bezier(.19,1,.22,1);box-shadow:0 0 44px rgba(0,0,0,.34)}
+  .sidebar.open{transform:translateX(0)}
+  .backdrop.show{display:block}
+  .hamb{display:grid;place-items:center}
+  .topbar{padding:11px 15px}
+  .content{padding:18px 15px 110px}
+  .topbar .page-title{font-size:17px}
+}
+
+/* Header */
+header.brand{display:flex;align-items:center;justify-content:space-between;padding:22px 4px 14px}
+.logo{display:flex;align-items:center;gap:12px}
+.logo .mark{
+  width:42px;height:42px;border-radius:12px;flex:0 0 42px;
+  background:linear-gradient(135deg,var(--ink),#33456a);
+  display:grid;place-items:center;color:var(--cream);box-shadow:var(--shadow);
+  position:relative;overflow:hidden;
+}
+.logo .mark::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(255,255,255,.08) 0 3px,transparent 3px 7px)}
+.logo .mark span{font-family:'Playfair Display';font-weight:600;font-size:22px;line-height:1}
+.logo h1{font-family:'Playfair Display';font-weight:600;font-size:21px;margin:0;letter-spacing:-.01em}
+.logo .sub{font-size:11.5px;color:var(--ink-soft);letter-spacing:.14em;text-transform:uppercase;margin-top:1px}
+.saved-pill{font-size:11px;color:var(--leaf);display:flex;align-items:center;gap:6px;background:rgba(93,115,85,.12);padding:6px 11px;border-radius:999px;font-weight:600}
+.saved-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--leaf)}
+
+/* Tabs */
+nav.tabs{display:flex;gap:6px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:5px;box-shadow:var(--shadow);overflow-x:auto;margin-bottom:20px}
+nav.tabs button{flex:1;min-width:max-content;border:0;background:transparent;font-family:inherit;font-weight:600;font-size:13.5px;color:var(--ink-soft);padding:10px 14px;border-radius:10px;cursor:pointer;white-space:nowrap;transition:.18s;display:flex;align-items:center;gap:7px;justify-content:center}
+nav.tabs button.active{background:var(--ink);color:var(--cream)}
+nav.tabs button:not(.active):hover{background:var(--cream-2)}
+
+.screen{display:none;animation:fade .35s ease both}
+.screen.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+h2.title{font-family:'Playfair Display';font-weight:600;font-size:26px;margin:4px 0 2px;letter-spacing:-.015em}
+p.lede{color:var(--ink-soft);margin:0 0 20px;font-size:14.5px;max-width:60ch}
+
+/* Home entry grid */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:720px){.grid{grid-template-columns:repeat(2,1fr)}}
+.entry{
+  background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:18px 16px;cursor:pointer;text-align:left;
+  box-shadow:var(--shadow);transition:.18s;font-family:inherit;position:relative;overflow:hidden;
+}
+.entry:hover{transform:translateY(-3px);border-color:var(--gold)}
+.entry .ico{font-size:24px;display:block;margin-bottom:12px}
+.entry .lbl{font-weight:700;font-size:15px;color:var(--ink);line-height:1.2}
+.entry .desc{font-size:12px;color:var(--ink-soft);margin-top:5px;line-height:1.35}
+.entry::before{content:"";position:absolute;top:0;left:0;width:100%;height:3px;background:var(--accent,var(--madder));transform:scaleX(0);transform-origin:left;transition:.25s}
+.entry:hover::before{transform:scaleX(1)}
+
+/* Stat cards */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:22px}
+@media(max-width:720px){.stat-row{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft);font-weight:600}
+.stat .v{font-family:'Playfair Display';font-size:25px;font-weight:600;margin-top:6px;letter-spacing:-.02em}
+.stat .v.pos{color:var(--ok)} .stat .v.neg{color:var(--warn)}
+.stat .meta{font-size:11.5px;color:var(--ink-soft);margin-top:3px}
+
+/* Panels & tables */
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:20px;overflow:hidden}
+.panel-h{padding:15px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.panel-h h3{font-family:'Playfair Display';font-weight:600;font-size:17px;margin:0}
+.panel-h .hint{font-size:12px;color:var(--ink-soft)}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-soft);font-weight:700;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--cream)}
+td{padding:11px 14px;border-bottom:1px solid var(--cream-2);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:999px;letter-spacing:.03em}
+.tag.bc{background:rgba(184,80,58,.14);color:var(--madder-deep)}
+.tag.bs{background:rgba(93,115,85,.16);color:var(--leaf)}
+.tag.dh{background:rgba(200,162,200,.22);color:var(--lilac-deep)}
+.tag.off{background:rgba(47,47,47,.1);color:var(--ink)}
+.bar{height:7px;border-radius:999px;background:var(--cream-2);overflow:hidden;min-width:60px}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--madder),var(--gold))}
+.empty{padding:34px 18px;text-align:center;color:var(--ink-soft);font-size:13.5px}
+
+/* Buttons */
+.btn{font-family:inherit;font-weight:700;font-size:13.5px;border-radius:11px;padding:11px 18px;cursor:pointer;border:1px solid transparent;transition:.16s}
+.btn.primary{background:var(--sage);color:#fff}
+.btn.primary:hover{background:var(--sage-deep)}
+.btn.madder{background:var(--madder);color:#fff}.btn.madder:hover{background:var(--madder-deep)}
+.btn.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+.btn.ghost:hover{background:var(--cream-2)}
+.btn.sm{padding:8px 13px;font-size:12.5px}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(47,47,47,.42);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:50;padding:0}
+.overlay.show{display:flex;animation:fade .2s}
+@media(min-width:640px){.overlay{align-items:center;padding:24px}}
+.modal{background:var(--paper);width:100%;max-width:640px;max-height:92vh;border-radius:22px 22px 0 0;overflow:auto;box-shadow:0 -10px 40px rgba(47,47,47,.25);animation:slideup .3s cubic-bezier(.19,1,.22,1) both}
+@media(min-width:640px){.modal{border-radius:22px}}
+@keyframes slideup{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+.modal-h{position:sticky;top:0;background:var(--paper);padding:18px 20px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;z-index:2}
+.modal-h h3{font-family:'Playfair Display';font-weight:600;font-size:19px;margin:0;display:flex;align-items:center;gap:9px}
+.modal-h .x{border:0;background:var(--cream-2);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;color:var(--ink);line-height:1}
+.modal-b{padding:18px 20px 22px}
+.modal-f{position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--line);padding:14px 20px;display:flex;gap:10px;justify-content:flex-end}
+
+/* Forms */
+.fg{margin-bottom:14px}
+.fg label{display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:6px;letter-spacing:.01em}
+.fg .opt{color:var(--ink-soft);font-weight:500}
+input,select,textarea{width:100%;font-family:inherit;font-size:14px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--cream);color:var(--ink);transition:.15s}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--gold);background:#fff;box-shadow:0 0 0 3px rgba(200,162,200,.16)}
+textarea{resize:vertical;min-height:64px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:520px){.row2,.row3{grid-template-columns:1fr}}
+.checklist{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--cream)}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;padding:7px 9px;border-radius:8px;cursor:pointer;background:#fff;border:1px solid var(--line)}
+.chk input{width:auto;margin:0}
+.chk.on{border-color:var(--gold);background:rgba(200,162,200,.1)}
+.help{font-size:11.5px;color:var(--ink-soft);margin-top:5px;line-height:1.4}
+.calc-pill{background:rgba(63,125,87,.12);color:var(--ok);font-weight:700;font-size:12.5px;padding:8px 12px;border-radius:10px;display:inline-block;margin-top:4px}
+.sku-line-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.sku-line-tbl th{padding:7px;font-size:10px;background:transparent}
+.sku-line-tbl td{padding:5px 4px;border:0}
+.sku-line-tbl input{padding:8px 8px;font-size:13px}
+.section-div{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--madder);margin:18px 0 10px;display:flex;align-items:center;gap:10px}
+.section-div::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:var(--cream);padding:13px 22px;border-radius:999px;font-weight:600;font-size:14px;box-shadow:0 10px 30px rgba(47,47,47,.3);z-index:99;opacity:0;transition:.3s;display:flex;align-items:center;gap:9px}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+.del{color:var(--madder);cursor:pointer;font-weight:700;font-size:12px;background:none;border:0;padding:4px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-soft);margin-bottom:14px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+.note{background:rgba(95,127,115,.09);border:1px solid rgba(95,127,115,.26);border-radius:12px;padding:13px 15px;font-size:13px;color:var(--sage-deep);margin-bottom:18px;line-height:1.5}
+.split2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:820px){.split2{grid-template-columns:1fr}}
+.iggrid{display:flex;align-items:flex-end;gap:8px;height:120px;padding:10px 0}
+.iggrid .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end}
+.iggrid .col .b{width:100%;max-width:34px;border-radius:6px 6px 0 0;background:linear-gradient(180deg,var(--gold),var(--madder));min-height:4px}
+.iggrid .col .lab{font-size:9.5px;color:var(--ink-soft)}
+
+/* KPI band (industry-standard metrics) */
+.kpi-band{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+@media(max-width:880px){.kpi-band{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 15px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi::after{content:"";position:absolute;left:0;top:0;height:100%;width:3px;background:var(--gold)}
+.kpi .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-soft);font-weight:700;display:flex;align-items:center;gap:5px}
+.kpi .v{font-family:'Playfair Display';font-size:23px;font-weight:600;margin-top:5px;letter-spacing:-.02em}
+.kpi .v.pos{color:var(--ok)}.kpi .v.neg{color:var(--madder)}
+.kpi .meta{font-size:11px;color:var(--ink-soft);margin-top:2px}
+.kpi .tip{cursor:help;font-size:10px;color:var(--ink-soft);border:1px solid var(--line);border-radius:50%;width:14px;height:14px;display:inline-grid;place-items:center;line-height:1}
+.band-h{font-family:'Playfair Display';font-weight:600;font-size:14px;color:var(--ink-soft);margin:2px 0 10px;letter-spacing:.02em}
+
+/* Image capture */
+.img-cap{display:flex;gap:14px;align-items:center}
+.img-prev{width:88px;height:88px;border-radius:14px;border:1px dashed var(--line);background:var(--cream);display:grid;place-items:center;overflow:hidden;flex:0 0 88px;font-size:10.5px;color:var(--ink-soft);text-align:center;padding:4px}
+.img-prev img{width:100%;height:100%;object-fit:cover;border-radius:13px}
+.img-btns{display:flex;flex-direction:column;gap:8px}
+.img-btns label,.img-btns button{margin:0}
+.sku-thumb{width:42px;height:42px;border-radius:9px;object-fit:cover;border:1px solid var(--line);display:block}
+.sku-thumb-ph{width:42px;height:42px;border-radius:9px;border:1px dashed var(--line);display:grid;place-items:center;font-size:15px;color:var(--ink-soft);background:var(--cream)}
+.tpl-box{background:var(--cream);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-family:monospace;font-size:11.5px;color:var(--ink-soft);overflow-x:auto;white-space:pre;margin-bottom:4px}
+
+/* Mobile polish */
+@media(max-width:640px){
+  .app{padding:0 11px 120px}
+  h2.title{font-size:23px}
+  nav.tabs button{padding:9px 11px;font-size:12.5px}
+  .modal-b{padding:16px 15px 20px}
+  .modal-h{padding:15px 16px 12px}
+  .modal-f{padding:12px 15px}
+  input,select,textarea{font-size:16px} /* prevents iOS zoom-on-focus */
+  .entry{padding:15px 13px}
+  .btn{padding:12px 16px}
+  .img-prev{width:76px;height:76px;flex-basis:76px}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="side-brand">
+      <div class="mark"><img src="data:image/png;base64,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" alt="Kritivan"></div>
+      <div class="sub">D2C Tracker</div>
+    </div>
+    <nav class="side-nav" id="sideNav">
+      <button data-screen="dashboard" data-title="Business Overview" class="active"><span class="ni">📊</span> Overview</button>
+      <button data-screen="home" data-title="Add Data"><span class="ni">➕</span> Add Data</button>
+      <button data-screen="demand" data-title="Demand · Online vs Offline"><span class="ni">📈</span> Demand</button>
+      <button data-screen="social" data-title="Social"><span class="ni">📱</span> Social</button>
+      <button data-screen="skus" data-title="Catalog"><span class="ni">🏷️</span> Catalog</button>
+      <div class="nav-div">SETTINGS</div>
+      <button data-screen="settings" data-title="Settings &amp; Sync"><span class="ni">⚙️</span> Settings &amp; Sync</button>
+    </nav>
+    <div class="side-foot">
+      <button class="btn primary side-cta" onclick="goAdd()">➕ New entry</button>
+      <div class="saved-pill" id="savePill"><span class="dot"></span> Saved</div>
+    </div>
+  </aside>
+  <div class="backdrop" id="backdrop" onclick="toggleNav(false)"></div>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="hamb" onclick="toggleNav(true)" aria-label="Menu">☰</button>
+      <h2 class="page-title" id="pageTitle">Business Overview</h2>
+      <div class="topbar-actions">
+        <span class="sync-dot" id="syncDot" title="Local only"></span>
+        <button class="btn primary sm" onclick="goAdd()">➕ New entry</button>
+      </div>
+    </header>
+    <div class="content">
+  <!-- HOME -->
+  <section class="screen" id="home">
+    <h2 class="title">Add Data</h2>
+    <p class="lede">Pick a card, fill only the fields that matter, and save. Everything flows into your Overview, Demand and Social automatically.</p>
+    <div class="grid" id="entryGrid"></div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section class="screen active" id="dashboard">
+    <h2 class="title">Business Overview</h2>
+    <p class="lede">The metrics D2C operators actually run on — margin, ROAS, CAC, AOV and sell-through — plus the money in vs. out and the picture per SKU.</p>
+    <div class="band-h">KEY METRICS</div>
+    <div class="kpi-band" id="kpiBand"></div>
+    <div class="band-h" style="margin-top:18px">P&amp;L SNAPSHOT</div>
+    <div class="stat-row" id="statRow"></div>
+    <div class="panel">
+      <div class="panel-h"><h3>Per-SKU economics</h3><span class="hint">Spend, units sold, revenue & estimated margin</span></div>
+      <div class="tbl-wrap"><table id="skuEconTbl"></table></div>
+    </div>
+    <div class="split2">
+      <div class="panel">
+        <div class="panel-h"><h3>Spend by category</h3></div>
+        <div class="tbl-wrap"><table id="spendTbl"></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Shipping P&amp;L</h3><span class="hint">Charged vs. actual courier cost</span></div>
+        <div class="tbl-wrap"><table id="shipTbl"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEMAND -->
+  <section class="screen" id="demand">
+    <h2 class="title">Demand · Online vs Offline</h2>
+    <p class="lede">Same design, both channels, one view. Offline SKUs map back to their online twin so total demand is unified.</p>
+    <div class="legend">
+      <span><i style="background:var(--leaf)"></i> Shopify (online)</span>
+      <span><i style="background:var(--madder)"></i> Offline events</span>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Units sold per SKU</h3><span class="hint">Ranked by total demand</span></div>
+      <div class="tbl-wrap"><table id="demandTbl"></table></div>
+    </div>
+  </section>
+
+  <!-- SOCIAL -->
+  <section class="screen" id="social">
+    <h2 class="title">Social</h2>
+    <p class="lede">Instagram growth over time and what each influencer collab actually cost you per order.</p>
+    <div class="stat-row" id="socialStats"></div>
+    <div class="panel">
+      <div class="panel-h"><h3>Follower growth</h3><span class="hint">Each snapshot you log</span></div>
+      <div class="modal-b" style="padding-bottom:6px"><div class="iggrid" id="igChart"></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Influencer ROI</h3><span class="hint">Total cost = gifted product + cash fee</span></div>
+      <div class="tbl-wrap"><table id="inflTbl"></table></div>
+    </div>
+  </section>
+
+  <!-- SKUS -->
+  <section class="screen" id="skus">
+    <h2 class="title">Catalog</h2>
+    <p class="lede">Your products with photos. Rename designs anytime, add new SKUs whenever you launch — they appear in every form automatically.</p>
+    <div class="btn-row" style="margin-bottom:16px">
+      <button class="btn madder" onclick="openSku()">+ Add SKU</button>
+    </div>
+    <div class="note">💡 Designs A &amp; B exist as both <b>Bedcover + Bedsheet</b> (shot together &amp; separately). Designs C &amp; D are bedsheet-only — your design-testing slots.</div>
+    <div class="panel">
+      <div class="tbl-wrap"><table id="skuTbl"></table></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="screen" id="settings">
+    <h2 class="title">Settings &amp; Sync</h2>
+    <p class="lede">Connect Google Sheets for live cloud backup, export a snapshot for your CA, or reset the workspace.</p>
+    <div class="panel">
+      <div class="panel-h"><h3>🗄️ Cloud database (Supabase)</h3><span class="hint" id="sbHint">Not configured</span></div>
+      <div class="modal-b">
+        <p style="margin:0 0 12px;font-size:13.5px;color:var(--ink-soft);line-height:1.5">Loads automatically on page open and saves every entry to your Supabase project — ideal for your Netlify-hosted app. Paste your project URL (looks like <code>https://abcd.supabase.co</code>), then run the one-time SQL from <b>supabase-setup.sql</b>.</p>
+        <div class="fg"><label>Supabase project URL</label><input id="sb_url" placeholder="https://YOUR-PROJECT-REF.supabase.co"></div>
+        <div class="btn-row">
+          <button class="btn primary sm" onclick="saveSbUrl()">Connect</button>
+          <button class="btn madder sm" onclick="cloudPush()">⬆ Save to cloud</button>
+          <button class="btn ghost sm" onclick="cloudPull()">⬇ Load from cloud</button>
+        </div>
+        <div class="help" style="margin-top:10px">The publishable key is already embedded and is safe for the browser. Anyone with your URL + key can read/write this data, so add Supabase Auth before sharing the link widely.</div>
+      </div>
+    </div>
+    <div class="split2">
+      <div class="panel">
+        <div class="panel-h"><h3>☁ Google Sheets</h3><span class="hint" id="syncHint">Not connected</span></div>
+        <div class="modal-b">
+          <p style="margin:0 0 14px;font-size:13.5px;color:var(--ink-soft);line-height:1.5">Live two-way sync through a free Apps Script bridge — your Sheet becomes durable cloud backup and a CA-ready report. Works from the downloaded app.</p>
+          <div class="btn-row">
+            <button class="btn primary sm" onclick="openSync()">⚙ Configure URL</button>
+            <button class="btn madder sm" onclick="pushSheet(false)">⬆ Push</button>
+            <button class="btn ghost sm" onclick="pullSheet()">⬇ Pull</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>📦 Export &amp; backup</h3></div>
+        <div class="modal-b">
+          <p style="margin:0 0 14px;font-size:13.5px;color:var(--ink-soft);line-height:1.5">A multi-tab Excel workbook for your CA, a quick summary CSV, or a full JSON backup you can re-import.</p>
+          <div class="btn-row">
+            <button class="btn primary sm" onclick="exportXLSX()">📗 Excel (.xlsx)</button>
+            <button class="btn ghost sm" onclick="exportCSV()">⬇ CSV</button>
+            <button class="btn ghost sm" onclick="exportJSON()">⬇ JSON</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>⚠ Danger zone</h3></div>
+      <div class="modal-b">
+        <p style="margin:0 0 14px;font-size:13.5px;color:var(--ink-soft);line-height:1.5">Reset wipes every entry on this device and restores the starting 12 SKUs. Export or push to Sheets first — this can't be undone.</p>
+        <button class="btn ghost sm" onclick="resetData()" style="color:var(--madder);border-color:var(--madder)">Reset all data</button>
+      </div>
+    </div>
+  </section>
+    </div><!-- /content -->
+  </main>
+</div><!-- /shell -->
+
+<!-- MODAL HOST -->
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal">
+    <div class="modal-h"><h3 id="modalTitle"></h3><button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-b" id="modalBody"></div>
+    <div class="modal-f" id="modalFoot"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   KRITIVAN D2C TRACKER — persistent single-file app
+   Storage: window.storage (artifact DB) with in-memory fallback
+   ============================================================ */
+const KEY = 'kritivan_v1';
+
+/* ===== Supabase cloud config =====
+   1. Paste your project URL below (or set it in Settings ▸ Cloud database).
+   2. Run the SQL in supabase-setup.sql once, in your Supabase SQL editor.
+   The publishable key is safe to ship in client-side code. */
+const SUPABASE_URL_DEFAULT = 'https://YOUR-PROJECT-REF.supabase.co'; // ← replace with your project URL
+const SUPABASE_KEY = 'sb_publishable_cGvHfMHEIN_73QbqHq-50g_C1-LLzVC';
+const SB_TABLE = 'kritivan_state';
+const SB_WORKSPACE = 'kritivan-main';   // row id — change to run multiple workspaces
+let sb = null, SB_URL = '';
+
+const hasStore = (()=>{ try { return !!(window.storage && window.storage.get); } catch(e){ return false; } })();
+
+const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const inr = n => '₹'+Math.round(n||0).toLocaleString('en-IN');
+const num = n => (n||0).toLocaleString('en-IN');
+const todayISO = ()=> new Date().toISOString().slice(0,10);
+
+/* ---------- Seed SKUs (12) ---------- */
+function seedSkus(){
+  const mk=(code,cat,design,size,mrp,cost,wt,dims,overlap,offline)=>({
+    id:uid(),code,cat,design,size,mrp,cost,weight:wt,dims,overlap,offline
+  });
+  return [
+    mk('BC-A-S','Bedcover','Design A','Single',2499,1100,800,'30x25x6',true ,'OFF-BC-A-S'),
+    mk('BC-A-D','Bedcover','Design A','Double',3299,1450,1100,'34x28x7',true ,'OFF-BC-A-D'),
+    mk('BC-B-S','Bedcover','Design B','Single',2499,1100,800,'30x25x6',true ,'OFF-BC-B-S'),
+    mk('BC-B-D','Bedcover','Design B','Double',3299,1450,1100,'34x28x7',true ,'OFF-BC-B-D'),
+    mk('BS-A','Bedsheet','Design A','One size',1799,780,650,'30x24x5',true ,'OFF-BS-A'),
+    mk('BS-B','Bedsheet','Design B','One size',1799,780,650,'30x24x5',true ,'OFF-BS-B'),
+    mk('BS-C','Bedsheet','Design C','One size',1799,780,650,'30x24x5',false,'OFF-BS-C'),
+    mk('BS-D','Bedsheet','Design D','One size',1799,780,650,'30x24x5',false,'OFF-BS-D'),
+    mk('DH-A-S','Dohar','Design A','Single',2199,950,900,'32x26x8',false,'OFF-DH-A-S'),
+    mk('DH-A-D','Dohar','Design A','Double',2899,1250,1300,'36x30x9',false,'OFF-DH-A-D'),
+    mk('DH-B-S','Dohar','Design B','Single',2199,950,900,'32x26x8',false,'OFF-DH-B-S'),
+    mk('DH-B-D','Dohar','Design B','Double',2899,1250,1300,'36x30x9',false,'OFF-DH-B-D'),
+  ];
+}
+function blank(){
+  return { skus:seedSkus(), inventory:[], logistics:[], shoots:[], gst:[],
+    marketing:[], shopify:[], salesImports:[], shipping:[], events:[], instagram:[], influencers:[], other:[],
+    syncUrl:'', autoPush:false };
+}
+let state = blank();
+
+/* ---------- Persistence ---------- */
+async function load(){
+  if(hasStore){
+    try{ const r = await window.storage.get(KEY); if(r&&r.value){ state = Object.assign(blank(), JSON.parse(r.value)); } }
+    catch(e){ /* first run / not found */ }
+  } else {
+    try{ const m = sessionStorage.getItem(KEY); if(m) state = Object.assign(blank(), JSON.parse(m)); }catch(e){}
+  }
+}
+let saveTimer;
+function save(){
+  flashSaved();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    const payload = JSON.stringify(state);
+    if(hasStore){ try{ await window.storage.set(KEY, payload); }catch(e){ try{sessionStorage.setItem(KEY,payload);}catch(_){}} }
+    else { try{ sessionStorage.setItem(KEY,payload); }catch(e){} }
+    cloudSave();           // mirror to Supabase when configured
+    if(state.autoPush && state.syncUrl) pushSheet(true); // optional Sheets mirror
+  },150);
+}
+function flashSaved(){ const p=document.getElementById('savePill'); p.style.opacity='.4'; setTimeout(()=>p.style.opacity='1',300); }
+
+/* ---------- Supabase cloud database ---------- */
+function sbConfigured(){ return !!sb; }
+function initSupabase(){
+  try{ SB_URL = (localStorage.getItem('kritivan_sb_url')||'').trim() || SUPABASE_URL_DEFAULT; }
+  catch(e){ SB_URL = SUPABASE_URL_DEFAULT; }
+  const valid = SB_URL && SB_URL.indexOf('http')===0 && SB_URL.indexOf('YOUR-PROJECT')<0;
+  if(valid && window.supabase && window.supabase.createClient){
+    try{ sb = window.supabase.createClient(SB_URL, SUPABASE_KEY); }catch(e){ sb=null; }
+  }
+}
+async function cloudLoad(){
+  if(!sb) return null;
+  try{
+    const { data, error } = await sb.from(SB_TABLE).select('data').eq('id', SB_WORKSPACE).maybeSingle();
+    if(error){ console.warn('cloudLoad', error.message); return null; }
+    return data ? data.data : null;
+  }catch(e){ console.warn('cloudLoad', e); return null; }
+}
+let cloudTimer;
+function cloudSave(){
+  if(!sb) return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(async ()=>{
+    try{
+      const { error } = await sb.from(SB_TABLE)
+        .upsert({ id: SB_WORKSPACE, data: state, updated_at: new Date().toISOString() });
+      if(error) console.warn('cloudSave', error.message);
+    }catch(e){ console.warn('cloudSave', e); }
+  }, 400);
+}
+
+/* ---------- Helpers ---------- */
+const catClass = c => c==='Bedcover'?'bc':c==='Bedsheet'?'bs':'dh';
+function skuByCode(code){ return state.skus.find(s=>s.code===code); }
+function skuLabel(s){ return s.code+' · '+s.design+(s.size&&s.size!=='One size'?' '+s.size:''); }
+
+/* ============================================================
+   FORM DEFINITIONS  (10 entry types)
+   ============================================================ */
+const ENTRIES = [
+  {id:'inventory', icon:'📦', label:'Inventory Purchase', desc:'Stock in, SKU-wise + landed cost', accent:'var(--madder)'},
+  {id:'offline',   icon:'🏪', label:'Offline Event Sale', desc:'Carried vs sold per SKU, stall cost', accent:'var(--leaf)'},
+  {id:'shopify',   icon:'🛍️', label:'Shopify Sales', desc:'Paste your monthly CSV export', accent:'var(--gold)'},
+  {id:'influencer',icon:'🤝', label:'Influencer Collab', desc:'Gifted SKUs, reach & orders driven', accent:'var(--madder)'},
+  {id:'marketing', icon:'📣', label:'Marketing Spend', desc:'Spend tagged to SKU / design', accent:'var(--leaf)'},
+  {id:'shoot',     icon:'🎬', label:'Shoot Cost', desc:'Cost auto-splits across SKUs shot', accent:'var(--gold)'},
+  {id:'shipping',  icon:'📦', label:'Outbound Shipping', desc:'Charged vs actual — shipping P&L', accent:'var(--madder)'},
+  {id:'logistics', icon:'🚚', label:'Inbound Logistics', desc:'Freight / courier to bring stock in', accent:'var(--leaf)'},
+  {id:'instagram', icon:'📱', label:'Instagram Update', desc:'Follower & engagement snapshot', accent:'var(--gold)'},
+  {id:'gst',       icon:'🧾', label:'GST Entry', desc:'Input vs output, invoice-linked', accent:'var(--madder)'},
+  {id:'other',     icon:'📁', label:'Other Expense', desc:'Packaging, SaaS tools, misc', accent:'var(--leaf)'},
+  {id:'bulk',      icon:'⬆️', label:'Bulk Upload', desc:'Import many rows at once — CSV or paste', accent:'var(--ink)'},
+];
+
+function renderHome(){
+  document.getElementById('entryGrid').innerHTML = ENTRIES.map(e=>`
+    <button class="entry" style="--accent:${e.accent}" onclick="${e.id==='bulk'?'openBulk()':"openForm('"+e.id+"')"}">
+      <span class="ico">${e.icon}</span>
+      <span class="lbl">${e.label}</span>
+      <span class="desc">${e.desc}</span>
+    </button>`).join('');
+}
+
+/* ---------- Modal plumbing ---------- */
+let currentForm=null, formExtra={};
+function openModal(title, bodyHTML, footHTML){
+  document.getElementById('modalTitle').innerHTML=title;
+  document.getElementById('modalBody').innerHTML=bodyHTML;
+  document.getElementById('modalFoot').innerHTML=footHTML;
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('modal').scrollTop=0;
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); currentForm=null; formExtra={}; }
+document.getElementById('overlay').addEventListener('click',e=>{ if(e.target.id==='overlay') closeModal(); });
+
+const skuOptions = (sel)=> state.skus.map(s=>`<option value="${s.code}" ${sel===s.code?'selected':''}>${skuLabel(s)}</option>`).join('');
+
+function openForm(type){
+  currentForm=type; formExtra={};
+  const meta = ENTRIES.find(e=>e.id===type);
+  let body='', foot=`<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveForm()">Save entry</button>`;
+
+  if(type==='inventory'){
+    body=`
+      <div class="row2"><div class="fg"><label>Date</label><input type="date" id="f_date" value="${todayISO()}"></div>
+      <div class="fg"><label>Supplier</label><input id="f_supplier" placeholder="e.g. Jaipur Mills"></div></div>
+      <div class="fg"><label>SKU</label><select id="f_sku">${skuOptions()}</select></div>
+      <div class="row3">
+        <div class="fg"><label>Units</label><input type="number" id="f_qty" min="0" oninput="invCalc()"></div>
+        <div class="fg"><label>Unit cost (₹)</label><input type="number" id="f_unit" min="0" oninput="invCalc()"></div>
+        <div class="fg"><label>GST %</label><input type="number" id="f_gst" value="5" oninput="invCalc()"></div>
+      </div>
+      <div class="fg"><label>Inbound freight for this PO <span class="opt">(optional, ₹)</span></label><input type="number" id="f_freight" min="0" oninput="invCalc()"><div class="help">Allocated across the units in this purchase to get true landed cost.</div></div>
+      <div id="invOut"></div>
+      ${captureBlock('rcpt_inv','Invoice / bill photo')}
+      <div class="fg"><label>Notes <span class="opt">(optional)</span></label><textarea id="f_notes"></textarea></div>`;
+  }
+
+  else if(type==='logistics'){
+    body=`<div class="row2"><div class="fg"><label>Date</label><input type="date" id="f_date" value="${todayISO()}"></div>
+      <div class="fg"><label>Courier / vendor</label><input id="f_courier" placeholder="e.g. Transport co."></div></div>
+      <div class="fg"><label>Cost (₹)</label><input type="number" id="f_cost" min="0"></div>
+      <div class="fg"><label>Notes <span class="opt">(linked PO / shipment)</span></label><textarea id="f_notes"></textarea></div>`;
+  }
+
+  else if(type==='shoot'){
+    const chk = state.skus.map(s=>`<label class="chk" onclick="toggleChk(this)"><input type="checkbox" value="${s.code}" onclick="event.stopPropagation();this.parentNode.classList.toggle('on',this.checked);shootCalc()"> ${skuLabel(s)}</label>`).join('');
+    body=`<div class="row2"><div class="fg"><label>Date</label><input type="date" id="f_date" value="${todayISO()}"></div>
+      <div class="fg"><label>Studio / photographer</label><input id="f_studio"></div></div>
+      <div class="fg"><label>Total shoot cost (₹)</label><input type="number" id="f_cost" min="0" oninput="shootCalc()"></div>
+      <div class="fg"><label>SKUs covered in this shoot</label><div class="checklist">${chk}</div>
+        <div class="help">One image can serve multiple SKUs (e.g. a bedcover + bedsheet shot together). Cost splits equally across everything ticked.</div>
+        <div id="shootOut"></div></div>
+      <div class="fg"><label>Notes <span class="opt">(optional)</span></label><textarea id="f_notes"></textarea></div>`;
+  }
+
+  else if(type==='gst'){
+    body=`<div class="row2"><div class="fg"><label>Date</label><input type="date" id="f_date" value="${todayISO()}"></div>
+      <div class="fg"><label>Type</label><select id="f_type"><option value="input">Input GST (paid)</option><option value="output">Output GST (collected)</option></select></div></div>
+      <div class="row2"><div class="fg"><label>Invoice no.</label><input id="f_invoice"></div>
+      <div class="fg"><label>GST amount (₹)</label><input type="number" id="f_amount" min="0"></div></div>
+      <div class="fg"><label>Notes <span class="opt">(optional)</span></label><textarea id="f_notes"></textarea></div>`;
+  }
+
+  else if(type==='marketing'){
+    body=`<div class="row2"><div class="fg"><label>Date</label><input type="date" id="f_date" value="${todayISO()}"></div>
+      <div class="fg"><label>Platform</label><select id="f_platform"><option>Instagram</option><option>Meta Ads</option><option>Google Ads</option><option>Other</option></select></div></div>
+      <div class="fg"><label>Campaign</label><input id="f_campaign" placeholder="e.g. Diwali bedcover push"></div>
+      <div class="fg"><label>Tag to SKU / design <span class="opt">(optional)</span></label><select id="f_sku"><option value="">— Not SKU-specific —</option>${skuOptions()}</select></div>
+      <div class="row3"><div class="fg"><label>Spend (₹)</label><input type="number" id="f_spend" min="0"></div>
+      <div class="fg"><label>Impressions</label><input type="number" id="f_impr" min="0"></div>
+      <div class="fg"><label>Orders</label><input type="number" id="f_orders" min="0"></div></div>`;
+  }
+
+  else if(type==='shopify'){
+    body=`<div class="note">Shopify Admin → Orders → Export → CSV. Paste the whole file below — I'll read <b>Lineitem sku</b>, <b>Lineitem quantity</b> and <b>Lineitem price</b> automatically.</div>
+      <div class="fg"><label>Month</label><input type="month" id="f_month" value="${todayISO().slice(0,7)}"></div>
+      <div class="fg"><label>Paste Shopify CSV export</label><textarea id="f_csv" style="min-height:140px;font-family:monospace;font-size:12px" placeholder="Name,Email,...,Lineitem quantity,Lineitem sku,Lineitem price,..." oninput="csvPreview()"></textarea></div>
+      <div id="csvOut"></div>`;
+    foot=`<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveForm()">Import sales</button>`;
+  }
+
+  else if(type==='shipping'){
+    body=`<div class="row2"><div class="fg"><label>Date</label><input type="date" id="f_date" value="${todayISO()}"></div>
+      <div class="fg"><label>Order ID</label><input id="f_order"></div></div>
+      <div class="row2"><div class="fg"><label>SKU</label><select id="f_sku" onchange="shipWt()">${skuOptions()}</select></div>
+      <div class="fg"><label>Zone</label><select id="f_zone"><option>Local</option><option>Regional</option><option>Metro</option><option>Rest of India</option></select></div></div>
+      <div class="row2"><div class="fg"><label>Chargeable weight (kg)</label><input type="number" step="0.1" id="f_wt" oninput="shipCalc()"></div>
+      <div class="fg"><label>Courier rate /kg (₹)</label><input type="number" id="f_rate" oninput="shipCalc()"></div></div>
+      <div class="row2"><div class="fg"><label>Charged to customer (₹)</label><input type="number" id="f_charged" oninput="shipCalc()"></div>
+      <div class="fg"><label>Actual courier cost (₹)</label><input type="number" id="f_actual" oninput="shipCalc()"><div class="help">Leave blank to auto-use weight × rate.</div></div></div>
+      <div id="shipOut"></div>`;
+  }
+
+  else if(type==='offline'){
+    const lines = state.skus.map(s=>`<tr>
+      <td style="white-space:nowrap">${skuLabel(s)}</td>
+      <td><input type="number" min="0" data-sku="${s.code}" data-f="carried" style="width:74px" oninput="offCalc()"></td>
+      <td><input type="number" min="0" data-sku="${s.code}" data-f="sold" style="width:74px" oninput="offCalc()"></td>
+      <td><input type="number" min="0" data-sku="${s.code}" data-f="price" placeholder="${s.mrp}" style="width:84px"></td>
+    </tr>`).join('');
+    body=`<div class="section-div">Before the event</div>
+      <div class="row2"><div class="fg"><label>Event name</label><input id="f_name" placeholder="e.g. Dastkar Bazaar"></div>
+      <div class="fg"><label>Date</label><input type="date" id="f_date" value="${todayISO()}"></div></div>
+      <div class="row2"><div class="fg"><label>City</label><input id="f_city"></div>
+      <div class="fg"><label>Venue type</label><select id="f_venue"><option>Pop-up</option><option>Exhibition</option><option>Market</option><option>Flea</option></select></div></div>
+      <div class="row3"><div class="fg"><label>Stall cost (₹)</label><input type="number" id="f_stall" min="0"></div>
+      <div class="fg"><label>Travel (₹)</label><input type="number" id="f_travel" min="0"></div>
+      <div class="fg"><label>Setup (₹)</label><input type="number" id="f_setup" min="0"></div></div>
+      <div class="section-div">Stock & sales (after event)</div>
+      <div class="tbl-wrap"><table class="sku-line-tbl">
+        <thead><tr><th>SKU</th><th>Carried</th><th>Sold</th><th>Price ₹</th></tr></thead><tbody>${lines}</tbody></table></div>
+      <div id="offOut"></div>
+      <div class="row2" style="margin-top:14px"><div class="fg"><label>Cash collected (₹)</label><input type="number" id="f_cash" min="0"></div>
+      <div class="fg"><label>UPI collected (₹)</label><input type="number" id="f_upi" min="0"></div></div>
+      <div class="fg"><label>Number of bills / customers <span class="opt">(for AOV)</span></label><input type="number" id="f_bills" min="0"><div class="help">How many separate transactions you billed — powers offline AOV on the Overview.</div></div>
+      <div class="fg"><label>Notes <span class="opt">— footfall, which designs got attention</span></label><textarea id="f_notes"></textarea></div>`;
+    foot=`<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveForm()">Save event</button>`;
+  }
+
+  else if(type==='instagram'){
+    body=`<div class="fg"><label>Snapshot date</label><input type="date" id="f_date" value="${todayISO()}"></div>
+      <div class="row3"><div class="fg"><label>Followers</label><input type="number" id="f_followers" min="0"></div>
+      <div class="fg"><label>Following</label><input type="number" id="f_following" min="0"></div>
+      <div class="fg"><label>Posts</label><input type="number" id="f_posts" min="0"></div></div>
+      <div class="row3"><div class="fg"><label>Reels</label><input type="number" id="f_reels" min="0"></div>
+      <div class="fg"><label>Profile visits</label><input type="number" id="f_visits" min="0"></div>
+      <div class="fg"><label>Bio link clicks</label><input type="number" id="f_clicks" min="0"></div></div>`;
+  }
+
+  else if(type==='influencer'){
+    const chk = state.skus.map(s=>`<label class="chk" onclick="toggleChk(this)"><input type="checkbox" value="${s.code}" data-cost="${s.cost}" onclick="event.stopPropagation();this.parentNode.classList.toggle('on',this.checked);inflCalc()"> ${skuLabel(s)}</label>`).join('');
+    body=`<div class="row2"><div class="fg"><label>Handle</label><input id="f_handle" placeholder="@handle"></div>
+      <div class="fg"><label>Niche</label><input id="f_niche" placeholder="home / lifestyle"></div></div>
+      <div class="row2"><div class="fg"><label>Their followers</label><input type="number" id="f_followers" min="0"></div>
+      <div class="fg"><label>Post date</label><input type="date" id="f_date" value="${todayISO()}"></div></div>
+      <div class="fg"><label>Gifted SKUs <span class="opt">(product cost auto-summed)</span></label><div class="checklist">${chk}</div></div>
+      <div class="row2"><div class="fg"><label>Cash fee (₹) <span class="opt">if any</span></label><input type="number" id="f_fee" min="0" value="0" oninput="inflCalc()"></div>
+      <div class="fg"><label>Post type</label><select id="f_type"><option>Reel</option><option>Story</option><option>Post</option><option>Carousel</option></select></div></div>
+      <div class="row3"><div class="fg"><label>Reach</label><input type="number" id="f_reach" min="0"></div>
+      <div class="fg"><label>Discount code</label><input id="f_code" placeholder="e.g. RIYA10"></div>
+      <div class="fg"><label>Orders driven</label><input type="number" id="f_orders" min="0" oninput="inflCalc()"></div></div>
+      <div id="inflOut"></div>`;
+  }
+
+  else if(type==='other'){
+    body=`<div class="row2"><div class="fg"><label>Date</label><input type="date" id="f_date" value="${todayISO()}"></div>
+      <div class="fg"><label>Category</label><select id="f_category"><option>Packaging</option><option>SaaS / tools</option><option>Samples</option><option>Misc</option></select></div></div>
+      <div class="fg"><label>Vendor</label><input id="f_vendor"></div>
+      <div class="fg"><label>Amount (₹)</label><input type="number" id="f_amount" min="0"></div>
+      ${captureBlock('rcpt_other','Receipt photo')}
+      <div class="fg"><label>Notes <span class="opt">(optional)</span></label><textarea id="f_notes"></textarea></div>`;
+  }
+
+  openModal(`${meta.icon} ${meta.label}`, body, foot);
+}
+
+/* ---------- Live calculators ---------- */
+function val(id){ const e=document.getElementById(id); return e?e.value:''; }
+function fnum(id){ return parseFloat(val(id))||0; }
+function toggleChk(l){ /* whole-label click handled by checkbox */ }
+
+function invCalc(){
+  const q=fnum('f_qty'),u=fnum('f_unit'),g=fnum('f_gst'),f=fnum('f_freight');
+  if(!q){document.getElementById('invOut').innerHTML='';return;}
+  const base=q*u, gst=base*g/100, landed=(base+gst+f)/q;
+  document.getElementById('invOut').innerHTML=`<div class="calc-pill">Total ${inr(base+gst+f)} · Landed cost / unit ${inr(landed)}</div>`;
+}
+function shootCalc(){
+  const c=fnum('f_cost'); const n=document.querySelectorAll('#modalBody .checklist input:checked').length;
+  document.getElementById('shootOut').innerHTML = (c&&n)?`<div class="calc-pill">${inr(c/n)} allocated to each of ${n} SKU(s)</div>`:'';
+}
+function shipWt(){ const s=skuByCode(val('f_sku')); if(s&&!val('f_wt')){ /* hint only */ } }
+function shipCalc(){
+  const wt=fnum('f_wt'),rate=fnum('f_rate'),charged=fnum('f_charged');
+  let actual=fnum('f_actual'); if(!actual&&wt&&rate) actual=wt*rate;
+  const diff=charged-actual;
+  document.getElementById('shipOut').innerHTML = (charged||actual)?`<div class="calc-pill" style="background:${diff>=0?'rgba(63,125,87,.12)':'rgba(184,80,58,.14)'};color:${diff>=0?'var(--ok)':'var(--madder)'}">Actual cost ${inr(actual)} · You ${diff>=0?'keep':'lose'} ${inr(Math.abs(diff))} on this shipment</div>`:'';
+}
+function offCalc(){
+  let rev=0,sold=0;
+  document.querySelectorAll('#modalBody [data-f="sold"]').forEach(inp=>{
+    const code=inp.dataset.sku, s=parseFloat(inp.value)||0;
+    const priceEl=document.querySelector(`#modalBody [data-sku="${code}"][data-f="price"]`);
+    const sku=skuByCode(code); const price=parseFloat(priceEl.value)|| (sku?sku.mrp:0);
+    rev+=s*price; sold+=s;
+  });
+  document.getElementById('offOut').innerHTML = sold?`<div class="calc-pill">${sold} units sold · ${inr(rev)} revenue</div>`:'';
+}
+function inflCalc(){
+  let pc=0,n=0;
+  document.querySelectorAll('#modalBody .checklist input:checked').forEach(c=>{pc+=parseFloat(c.dataset.cost)||0;n++;});
+  const fee=fnum('f_fee'), orders=fnum('f_orders'); const total=pc+fee;
+  let html=`<div class="calc-pill">Total cost ${inr(total)} (product ${inr(pc)} + fee ${inr(fee)})`;
+  if(orders) html+=` · ${inr(total/orders)} per order`;
+  html+='</div>';
+  document.getElementById('inflOut').innerHTML = (n||fee)?html:'';
+}
+function parseCSV(text){
+  const lines=text.trim().split(/\r?\n/).filter(l=>l.trim()); if(!lines.length) return [];
+  const head=splitCSV(lines[0]).map(h=>h.toLowerCase());
+  const iSku=head.findIndex(h=>h.includes('sku'));
+  const iQty=head.findIndex(h=>h.includes('quantity'));
+  const iPrice=head.findIndex(h=>h.includes('price'));
+  const iName=head.findIndex(h=>h==='name'||h.includes('order id')||h.includes('order number'));
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    const c=splitCSV(lines[i]);
+    const sku=iSku>=0?c[iSku]:c[0];
+    const qty=parseFloat(iQty>=0?c[iQty]:c[1])||0;
+    const price=parseFloat(iPrice>=0?c[iPrice]:c[2])||0;
+    const order=iName>=0?c[iName]:'';
+    if(sku&&qty) rows.push({sku,qty,price,order});
+  }
+  return rows;
+}
+function distinctOrders(rows){ const s=new Set(); rows.forEach(r=>{ if(r.order) s.add(r.order); }); return s.size; }
+function csvPreview(){
+  const rows=parseCSV(val('f_csv'));
+  const agg={};let units=0,rev=0,unknown=0;
+  rows.forEach(r=>{ agg[r.sku]=(agg[r.sku]||0)+r.qty; units+=r.qty; rev+=r.qty*r.price; if(!skuByCode(r.sku)) unknown+=r.qty; });
+  formExtra.csvRows=rows;
+  const ord=distinctOrders(rows);
+  document.getElementById('csvOut').innerHTML = rows.length?
+    `<div class="calc-pill">${rows.length} line items${ord?` · ${ord} orders`:''} · ${units} units · ${inr(rev)} revenue${unknown?` · ⚠ ${unknown} units have SKUs not in your master`:''}</div>`:'';
+}
+
+/* ---------- Save handlers ---------- */
+function saveForm(){
+  const t=currentForm; const e={id:uid()};
+  if(t==='inventory'){ Object.assign(e,{date:val('f_date'),supplier:val('f_supplier'),sku:val('f_sku'),qty:fnum('f_qty'),unit:fnum('f_unit'),gst:fnum('f_gst'),freight:fnum('f_freight'),receipt:getImg('rcpt_inv'),notes:val('f_notes')});
+    if(!e.qty){return toast('Enter units');} state.inventory.push(e); }
+  else if(t==='logistics'){ Object.assign(e,{date:val('f_date'),courier:val('f_courier'),cost:fnum('f_cost'),notes:val('f_notes')}); state.logistics.push(e); }
+  else if(t==='shoot'){ const skus=[...document.querySelectorAll('#modalBody .checklist input:checked')].map(c=>c.value);
+    if(!skus.length){return toast('Tick at least one SKU');}
+    Object.assign(e,{date:val('f_date'),studio:val('f_studio'),cost:fnum('f_cost'),skus,perSku:fnum('f_cost')/skus.length,notes:val('f_notes')}); state.shoots.push(e); }
+  else if(t==='gst'){ Object.assign(e,{date:val('f_date'),type:val('f_type'),invoice:val('f_invoice'),amount:fnum('f_amount'),notes:val('f_notes')}); state.gst.push(e); }
+  else if(t==='marketing'){ Object.assign(e,{date:val('f_date'),platform:val('f_platform'),campaign:val('f_campaign'),sku:val('f_sku'),spend:fnum('f_spend'),impr:fnum('f_impr'),orders:fnum('f_orders')}); state.marketing.push(e); }
+  else if(t==='shopify'){ const rows=formExtra.csvRows||parseCSV(val('f_csv')); if(!rows.length){return toast('Paste a CSV with sales');}
+    const month=val('f_month');
+    rows.forEach(r=>state.shopify.push({id:uid(),month,sku:r.sku,qty:r.qty,price:r.price}));
+    const orders=distinctOrders(rows), units=rows.reduce((a,r)=>a+r.qty,0), rev=rows.reduce((a,r)=>a+r.qty*r.price,0);
+    state.salesImports.push({id:uid(),month,orders,units,revenue:rev});
+    toast(`Imported ${rows.length} line items`); finishSave(); return; }
+  else if(t==='shipping'){ let actual=fnum('f_actual'); if(!actual) actual=fnum('f_wt')*fnum('f_rate');
+    Object.assign(e,{date:val('f_date'),order:val('f_order'),sku:val('f_sku'),zone:val('f_zone'),wt:fnum('f_wt'),rate:fnum('f_rate'),charged:fnum('f_charged'),actual}); state.shipping.push(e); }
+  else if(t==='offline'){ const lines=[];
+    document.querySelectorAll('#modalBody [data-f="carried"]').forEach(inp=>{
+      const code=inp.dataset.sku; const carried=parseFloat(inp.value)||0;
+      const sold=parseFloat(document.querySelector(`#modalBody [data-sku="${code}"][data-f="sold"]`).value)||0;
+      const sku=skuByCode(code);
+      const price=parseFloat(document.querySelector(`#modalBody [data-sku="${code}"][data-f="price"]`).value)||(sku?sku.mrp:0);
+      if(carried||sold) lines.push({sku:code,carried,sold,price});
+    });
+    if(!val('f_name')){return toast('Enter event name');}
+    Object.assign(e,{name:val('f_name'),date:val('f_date'),city:val('f_city'),venue:val('f_venue'),stall:fnum('f_stall'),travel:fnum('f_travel'),setup:fnum('f_setup'),cash:fnum('f_cash'),upi:fnum('f_upi'),bills:fnum('f_bills'),notes:val('f_notes'),lines}); state.events.push(e); }
+  else if(t==='instagram'){ Object.assign(e,{date:val('f_date'),followers:fnum('f_followers'),following:fnum('f_following'),posts:fnum('f_posts'),reels:fnum('f_reels'),visits:fnum('f_visits'),clicks:fnum('f_clicks')}); state.instagram.push(e); }
+  else if(t==='influencer'){ const gifted=[...document.querySelectorAll('#modalBody .checklist input:checked')].map(c=>c.value);
+    const pc=gifted.reduce((a,c)=>a+(skuByCode(c)?.cost||0),0);
+    Object.assign(e,{handle:val('f_handle'),niche:val('f_niche'),followers:fnum('f_followers'),date:val('f_date'),gifted,productCost:pc,fee:fnum('f_fee'),type:val('f_type'),reach:fnum('f_reach'),code:val('f_code'),orders:fnum('f_orders')}); state.influencers.push(e); }
+  else if(t==='other'){ Object.assign(e,{date:val('f_date'),category:val('f_category'),vendor:val('f_vendor'),amount:fnum('f_amount'),receipt:getImg('rcpt_other'),notes:val('f_notes')}); state.other.push(e); }
+  toast('Saved ✓'); finishSave();
+}
+function finishSave(){ save(); closeModal(); renderAll(); }
+
+/* ============================================================
+   AGGREGATIONS
+   ============================================================ */
+function computeSku(){
+  const m={};
+  state.skus.forEach(s=>m[s.code]={code:s.code,cat:s.cat,design:s.design,size:s.size,mrp:s.mrp,cost:s.cost,
+    purch:0,invCost:0,freight:0,shoot:0,mkt:0,onlineU:0,onlineR:0,offU:0,offR:0});
+  state.inventory.forEach(r=>{const x=m[r.sku];if(!x)return;x.purch+=r.qty;x.invCost+=r.qty*r.unit*(1+r.gst/100);x.freight+=r.freight||0;});
+  state.shoots.forEach(sh=>sh.skus.forEach(c=>{if(m[c])m[c].shoot+=sh.perSku;}));
+  state.marketing.forEach(r=>{if(r.sku&&m[r.sku])m[r.sku].mkt+=r.spend;});
+  state.shopify.forEach(r=>{const x=m[r.sku];if(!x)return;x.onlineU+=r.qty;x.onlineR+=r.qty*r.price;});
+  state.events.forEach(ev=>ev.lines.forEach(l=>{const x=m[l.sku];if(!x)return;x.offU+=l.sold;x.offR+=l.sold*l.price;}));
+  Object.values(m).forEach(x=>{
+    x.soldU=x.onlineU+x.offU; x.rev=x.onlineR+x.offR;
+    x.landed = x.purch? (x.invCost+x.freight+x.shoot)/x.purch : (x.cost||0);
+    x.cogs = x.landed*x.soldU;
+    x.margin = x.rev - x.cogs - x.mkt;
+    x.totalSpend = x.invCost + x.freight + x.shoot + x.mkt;
+  });
+  return m;
+}
+function totals(){
+  const inv=state.inventory.reduce((a,r)=>a+r.qty*r.unit*(1+r.gst/100),0);
+  const freight=state.inventory.reduce((a,r)=>a+(r.freight||0),0)+state.logistics.reduce((a,r)=>a+r.cost,0);
+  const shoot=state.shoots.reduce((a,r)=>a+r.cost,0);
+  const mkt=state.marketing.reduce((a,r)=>a+r.spend,0);
+  const infl=state.influencers.reduce((a,r)=>a+(r.productCost||0)+(r.fee||0),0);
+  const events=state.events.reduce((a,e)=>a+(e.stall||0)+(e.travel||0)+(e.setup||0),0);
+  const other=state.other.reduce((a,r)=>a+r.amount,0);
+  const shipNet=state.shipping.reduce((a,r)=>a+(r.charged-r.actual),0);
+  const onlineR=state.shopify.reduce((a,r)=>a+r.qty*r.price,0);
+  const offR=state.events.reduce((a,e)=>a+e.lines.reduce((b,l)=>b+l.sold*l.price,0),0);
+  const totalSpend=inv+freight+shoot+mkt+infl+events+other;
+  const revenue=onlineR+offR;
+  return {inv,freight,shoot,mkt,infl,events,other,shipNet,onlineR,offR,totalSpend,revenue,net:revenue-totalSpend+shipNet};
+}
+
+/* ============================================================
+   RENDERERS
+   ============================================================ */
+function computeKPIs(){
+  const t=totals(); const m=computeSku(); const econ=Object.values(m);
+  const unitsSold=econ.reduce((a,x)=>a+x.soldU,0);
+  const unitsBought=econ.reduce((a,x)=>a+x.purch,0);
+  const cogs=econ.reduce((a,x)=>a+x.cogs,0);
+  const adSpend=t.mkt+t.infl;
+  const ordersOnline=(state.salesImports||[]).reduce((a,r)=>a+(r.orders||0),0);
+  const ordersOffline=state.events.reduce((a,e)=>a+(e.bills||0),0);
+  const orders=ordersOnline+ordersOffline;
+  const shipLoss=t.shipNet<0?-t.shipNet:0;
+  return {
+    revenue:t.revenue, orders, unitsSold, unitsBought,
+    grossMargin: t.revenue? (t.revenue-cogs)/t.revenue*100 : 0,
+    contribution: t.revenue - cogs - adSpend - shipLoss,
+    roas: adSpend? t.revenue/adSpend : 0,
+    cac: orders? adSpend/orders : 0,
+    aov: orders? t.revenue/orders : 0,
+    sellThrough: unitsBought? unitsSold/unitsBought*100 : 0,
+    inStock: unitsBought-unitsSold,
+    mer: t.revenue? adSpend/t.revenue*100 : 0,
+    adSpend
+  };
+}
+function kpiCard(label,value,meta,tip,cls){
+  return `<div class="kpi"><div class="k">${label} <span class="tip" title="${tip}">i</span></div>
+    <div class="v ${cls||''}">${value}</div><div class="meta">${meta}</div></div>`;
+}
+function renderDashboard(){
+  const t=totals(); const m=computeSku(); const list=Object.values(m); const k=computeKPIs();
+  const pct=n=>(n||0).toFixed(0)+'%';
+  document.getElementById('kpiBand').innerHTML=
+    kpiCard('Net Revenue', inr(k.revenue), `${num(k.orders)} orders · online + offline`, 'Total sales across Shopify and offline events.','pos')+
+    kpiCard('Gross Margin', pct(k.grossMargin), 'Revenue minus landed COGS', 'Share of revenue left after the cost of goods sold.', k.grossMargin>=40?'pos':(k.grossMargin<25?'neg':''))+
+    kpiCard('Blended ROAS', k.roas?k.roas.toFixed(2)+'×':'—', `on ${inr(k.adSpend)} ad+collab spend`, 'Revenue divided by all marketing + influencer spend.', k.roas>=2?'pos':(k.roas&&k.roas<1?'neg':''))+
+    kpiCard('CAC', k.cac?inr(k.cac):'—', `${num(k.orders)} orders`, 'Customer acquisition cost = marketing+influencer spend ÷ orders.')+
+    kpiCard('AOV', k.aov?inr(k.aov):'—', 'Average order value', 'Revenue ÷ number of orders. Offline needs the "bills" field.')+
+    kpiCard('Sell-through', k.unitsBought?pct(k.sellThrough):'—', `${num(k.unitsSold)}/${num(k.unitsBought)} units`, 'Units sold ÷ units purchased — how fast stock moves.', k.sellThrough>=60?'pos':'')+
+    kpiCard('Units in stock', k.unitsBought?num(k.inStock):'—', 'Bought minus sold', 'Estimated inventory on hand across all SKUs.', k.inStock<0?'neg':'')+
+    kpiCard('Contribution', inr(k.contribution), `MER ${pct(k.mer)} of revenue`, 'Revenue − COGS − ad/collab spend − shipping losses.', k.contribution>=0?'pos':'neg');
+
+  document.getElementById('statRow').innerHTML=`
+    <div class="stat"><div class="k">Total revenue</div><div class="v pos">${inr(t.revenue)}</div><div class="meta">Online ${inr(t.onlineR)} · Offline ${inr(t.offR)}</div></div>
+    <div class="stat"><div class="k">Total spend</div><div class="v">${inr(t.totalSpend)}</div><div class="meta">All cost buckets</div></div>
+    <div class="stat"><div class="k">Net position</div><div class="v ${t.net>=0?'pos':'neg'}">${inr(t.net)}</div><div class="meta">incl. shipping ${t.shipNet>=0?'+':''}${inr(t.shipNet)}</div></div>
+    <div class="stat"><div class="k">Units sold</div><div class="v">${num(list.reduce((a,x)=>a+x.soldU,0))}</div><div class="meta">across both channels</div></div>`;
+
+  const sorted=[...list].sort((a,b)=>b.rev-a.rev);
+  const anyData = list.some(x=>x.purch||x.soldU||x.totalSpend);
+  document.getElementById('skuEconTbl').innerHTML = !anyData ?
+    `<tr><td><div class="empty">No data yet — add an inventory purchase or import Shopify sales to see economics here.</div></td></tr>` :
+    `<thead><tr><th>SKU</th><th class="num">Bought</th><th class="num">Spend</th><th class="num">Sold</th><th class="num">Revenue</th><th class="num">Landed/unit</th><th class="num">Est. margin</th></tr></thead><tbody>`+
+    sorted.map(x=>`<tr>
+      <td><span class="tag ${catClass(x.cat)}">${x.code}</span> <span style="color:var(--ink-soft);font-size:12px">${x.design}${x.size!=='One size'?' '+x.size:''}</span></td>
+      <td class="num">${num(x.purch)}</td>
+      <td class="num">${inr(x.totalSpend)}</td>
+      <td class="num">${num(x.soldU)}</td>
+      <td class="num">${inr(x.rev)}</td>
+      <td class="num">${x.purch?inr(x.landed):'—'}</td>
+      <td class="num" style="color:${x.margin>=0?'var(--ok)':'var(--madder)'};font-weight:700">${inr(x.margin)}</td>
+    </tr>`).join('')+`</tbody>`;
+
+  document.getElementById('spendTbl').innerHTML=`<tbody>
+    ${spendRow('Inventory (incl. GST)',t.inv)}
+    ${spendRow('Freight (in + out logistics)',t.freight)}
+    ${spendRow('Shoots',t.shoot)}
+    ${spendRow('Marketing',t.mkt)}
+    ${spendRow('Influencers',t.infl)}
+    ${spendRow('Offline events',t.events)}
+    ${spendRow('Other',t.other)}
+    <tr><td style="font-weight:700">Total</td><td class="num" style="font-weight:700">${inr(t.totalSpend)}</td></tr>
+  </tbody>`;
+
+  const ship=state.shipping;
+  const charged=ship.reduce((a,r)=>a+r.charged,0), actual=ship.reduce((a,r)=>a+r.actual,0);
+  document.getElementById('shipTbl').innerHTML = ship.length?
+    `<tbody>${spendRow('Charged to customers',charged)}${spendRow('Actual courier cost',actual)}
+     <tr><td style="font-weight:700">Net on shipping</td><td class="num" style="font-weight:700;color:${charged-actual>=0?'var(--ok)':'var(--madder)'}">${inr(charged-actual)}</td></tr>
+     <tr><td colspan="2" style="font-size:12px;color:var(--ink-soft)">${ship.length} shipments logged</td></tr></tbody>`
+    : `<tbody><tr><td><div class="empty">Log outbound shipments to see if your shipping charges cover real courier cost.</div></td></tr></tbody>`;
+}
+function spendRow(l,v){ return `<tr><td>${l}</td><td class="num">${inr(v)}</td></tr>`; }
+
+function renderDemand(){
+  const m=computeSku(); const list=Object.values(m).sort((a,b)=>b.soldU-a.soldU);
+  const max=Math.max(1,...list.map(x=>x.soldU));
+  const any=list.some(x=>x.soldU);
+  document.getElementById('demandTbl').innerHTML = !any ?
+    `<tr><td><div class="empty">No sales yet. Import Shopify CSV or log an offline event to build your demand picture.</div></td></tr>` :
+    `<thead><tr><th>SKU</th><th class="num">Online</th><th class="num">Offline</th><th class="num">Total</th><th>Share</th></tr></thead><tbody>`+
+    list.map((x,i)=>`<tr>
+      <td><span style="color:var(--ink-soft);font-weight:700;margin-right:6px">#${i+1}</span><span class="tag ${catClass(x.cat)}">${x.code}</span> <span style="font-size:12px;color:var(--ink-soft)">${x.design}${x.size!=='One size'?' '+x.size:''}</span></td>
+      <td class="num">${num(x.onlineU)}</td><td class="num">${num(x.offU)}</td>
+      <td class="num" style="font-weight:700">${num(x.soldU)}</td>
+      <td><div class="bar"><i style="width:${x.soldU/max*100}%"></i></div></td>
+    </tr>`).join('')+`</tbody>`;
+}
+
+function renderSocial(){
+  const ig=[...state.instagram].sort((a,b)=>a.date.localeCompare(b.date));
+  const latest=ig[ig.length-1], first=ig[0];
+  const growth=latest&&first?latest.followers-first.followers:0;
+  const infl=state.influencers;
+  const spend=infl.reduce((a,r)=>a+(r.productCost||0)+(r.fee||0),0);
+  const orders=infl.reduce((a,r)=>a+(r.orders||0),0);
+  document.getElementById('socialStats').innerHTML=`
+    <div class="stat"><div class="k">Followers</div><div class="v">${latest?num(latest.followers):'—'}</div><div class="meta">${growth>=0?'+':''}${num(growth)} since first log</div></div>
+    <div class="stat"><div class="k">Collabs</div><div class="v">${infl.length}</div><div class="meta">influencers tracked</div></div>
+    <div class="stat"><div class="k">Collab spend</div><div class="v">${inr(spend)}</div><div class="meta">product + cash</div></div>
+    <div class="stat"><div class="k">Cost / order</div><div class="v">${orders?inr(spend/orders):'—'}</div><div class="meta">${num(orders)} orders driven</div></div>`;
+
+  const max=Math.max(1,...ig.map(x=>x.followers));
+  document.getElementById('igChart').innerHTML = ig.length?
+    ig.slice(-12).map(x=>`<div class="col"><div class="b" style="height:${Math.max(4,x.followers/max*100)}%"></div><div class="lab">${x.date.slice(5)}</div></div>`).join('')
+    : `<div class="empty" style="width:100%">No Instagram snapshots yet — log one to start your growth curve.</div>`;
+
+  document.getElementById('inflTbl').innerHTML = infl.length?
+    `<thead><tr><th>Handle</th><th class="num">Followers</th><th class="num">Reach</th><th class="num">Cost</th><th class="num">Orders</th><th class="num">Cost/order</th></tr></thead><tbody>`+
+    infl.slice().reverse().map(r=>{const c=(r.productCost||0)+(r.fee||0);return `<tr>
+      <td><b>${r.handle||'—'}</b><div style="font-size:11px;color:var(--ink-soft)">${r.niche||''} · ${r.type||''}</div></td>
+      <td class="num">${num(r.followers)}</td><td class="num">${num(r.reach)}</td><td class="num">${inr(c)}</td>
+      <td class="num">${num(r.orders)}</td><td class="num" style="font-weight:700">${r.orders?inr(c/r.orders):'—'}</td>
+    </tr>`;}).join('')+`</tbody>`
+    : `<tr><td><div class="empty">No collabs logged yet.</div></td></tr>`;
+}
+
+function renderSkus(){
+  document.getElementById('skuTbl').innerHTML=
+    `<thead><tr><th></th><th>SKU</th><th>Category</th><th>Design</th><th>Size</th><th class="num">Cost</th><th class="num">MRP</th><th class="num">Wt (g)</th><th>Offline twin</th><th></th></tr></thead><tbody>`+
+    state.skus.map(s=>`<tr>
+      <td>${s.img?`<img class="sku-thumb" src="${s.img}">`:`<span class="sku-thumb-ph">🛏️</span>`}</td>
+      <td><span class="tag ${catClass(s.cat)}">${s.code}</span></td>
+      <td>${s.cat}</td><td>${s.design}</td><td>${s.size}</td>
+      <td class="num">${inr(s.cost)}</td><td class="num">${inr(s.mrp)}</td><td class="num">${num(s.weight)}</td>
+      <td><span class="tag off">${s.offline}</span></td>
+      <td><button class="del" onclick="editSku('${s.id}')">edit</button></td>
+    </tr>`).join('')+`</tbody>`;
+}
+
+/* ---------- SKU add / edit ---------- */
+function openSku(existing){
+  formExtra={};
+  const s=existing||{};
+  const body=`
+    ${captureBlock('skuimg','Product photo', s.img||'')}
+    <div class="row2"><div class="fg"><label>SKU code</label><input id="s_code" value="${s.code||''}" placeholder="e.g. BS-E"></div>
+    <div class="fg"><label>Category</label><select id="s_cat"><option ${s.cat==='Bedcover'?'selected':''}>Bedcover</option><option ${s.cat==='Bedsheet'?'selected':''}>Bedsheet</option><option ${s.cat==='Dohar'?'selected':''}>Dohar</option><option ${s.cat==='Other'?'selected':''}>Other</option></select></div></div>
+    <div class="row2"><div class="fg"><label>Design name</label><input id="s_design" value="${s.design||''}" placeholder="Indigo Block / Design E"></div>
+    <div class="fg"><label>Size</label><input id="s_size" value="${s.size||'One size'}"></div></div>
+    <div class="row3"><div class="fg"><label>Cost (₹)</label><input type="number" id="s_cost" value="${s.cost||''}"></div>
+    <div class="fg"><label>MRP (₹)</label><input type="number" id="s_mrp" value="${s.mrp||''}"></div>
+    <div class="fg"><label>Weight (g)</label><input type="number" id="s_wt" value="${s.weight||''}"></div></div>
+    <div class="fg"><label>Box dims L×W×H (cm) <span class="opt">for volumetric weight</span></label><input id="s_dims" value="${s.dims||''}" placeholder="34x28x7"></div>
+    <div class="help">Volumetric weight = L×W×H ÷ 5000. Couriers charge whichever is higher — dead or volumetric.</div>`;
+  const foot = existing
+    ? `<button class="btn ghost" onclick="delSku('${s.id}')">Delete</button><button class="btn primary" onclick="commitSku('${s.id}')">Save</button>`
+    : `<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="commitSku()">Add SKU</button>`;
+  openModal(existing?'✎ Edit SKU':'🏷️ Add SKU', body, foot);
+}
+function editSku(id){ openSku(state.skus.find(s=>s.id===id)); }
+function commitSku(id){
+  const code=val('s_code').trim().toUpperCase(); if(!code){return toast('Enter a SKU code');}
+  const existing = id? state.skus.find(x=>x.id===id) : null;
+  const rec={code,cat:val('s_cat'),design:val('s_design'),size:val('s_size')||'One size',
+    cost:fnum('s_cost'),mrp:fnum('s_mrp'),weight:fnum('s_wt'),dims:val('s_dims'),
+    img:getImg('skuimg', existing?existing.img:''), overlap:false,offline:'OFF-'+code};
+  if(id){ Object.assign(existing, rec); }
+  else { if(skuByCode(code)){return toast('That SKU code already exists');} rec.id=uid(); state.skus.push(rec); }
+  toast('SKU saved'); save(); closeModal(); renderAll();
+}
+function delSku(id){ state.skus=state.skus.filter(s=>s.id!==id); toast('SKU removed'); save(); closeModal(); renderAll(); }
+
+/* ---------- Export ---------- */
+function download(name,content,type){ const b=new Blob([content],{type}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),1000); }
+function exportJSON(){ download('kritivan-backup-'+todayISO()+'.json', JSON.stringify(state,null,2),'application/json'); toast('Backup downloaded'); }
+function exportCSV(){
+  const m=computeSku(); const rows=[['SKU','Category','Design','Size','Units bought','Total spend','Units sold','Revenue','Landed/unit','Est. margin']];
+  Object.values(m).forEach(x=>rows.push([x.code,x.cat,x.design,x.size,x.purch,Math.round(x.totalSpend),x.soldU,Math.round(x.rev),Math.round(x.landed),Math.round(x.margin)]));
+  const t=totals();
+  rows.push([]); rows.push(['SUMMARY']); rows.push(['Total revenue',Math.round(t.revenue)]);
+  rows.push(['Total spend',Math.round(t.totalSpend)]); rows.push(['Net (incl shipping)',Math.round(t.net)]);
+  const csv=rows.map(r=>r.map(c=>`"${(''+c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  download('kritivan-CA-report-'+todayISO()+'.csv',csv,'text/csv'); toast('CA report downloaded');
+}
+function exportXLSX(){
+  if(typeof XLSX==='undefined'){ return toast('Excel engine still loading — try again in a moment'); }
+  const wb=XLSX.utils.book_new();
+  const add=(name,aoa)=>{ const ws=XLSX.utils.aoa_to_sheet(aoa); XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31)); };
+  const t=totals(); const m=computeSku(); const econ=Object.values(m); const k=computeKPIs();
+
+  // Dashboard summary
+  add('Dashboard',[
+    ['Kritivan D2C Tracker — Report'],['Generated',todayISO()],[],
+    ['KEY METRICS',''],
+    ['Net revenue',Math.round(k.revenue)],
+    ['Orders',k.orders],
+    ['Gross margin %',k.grossMargin.toFixed(1)],
+    ['Blended ROAS',k.roas.toFixed(2)],
+    ['CAC',Math.round(k.cac)],
+    ['AOV',Math.round(k.aov)],
+    ['Sell-through %',k.sellThrough.toFixed(1)],
+    ['Units in stock',k.inStock],
+    ['Contribution margin',Math.round(k.contribution)],[],
+    ['P&L SUMMARY','₹'],
+    ['Total revenue',Math.round(t.revenue)],
+    ['  Online (Shopify)',Math.round(t.onlineR)],
+    ['  Offline (events)',Math.round(t.offR)],
+    ['Total spend',Math.round(t.totalSpend)],
+    ['  Inventory (incl GST)',Math.round(t.inv)],
+    ['  Freight (in+out)',Math.round(t.freight)],
+    ['  Shoots',Math.round(t.shoot)],
+    ['  Marketing',Math.round(t.mkt)],
+    ['  Influencers',Math.round(t.infl)],
+    ['  Offline event costs',Math.round(t.events)],
+    ['  Other',Math.round(t.other)],
+    ['Shipping net (charged-actual)',Math.round(t.shipNet)],
+    ['NET POSITION',Math.round(t.net)],
+  ]);
+
+  // Per-SKU economics
+  add('SKU Economics',[['SKU','Category','Design','Size','Units bought','Total spend','Units sold','Online units','Offline units','Revenue','Landed/unit','Est. margin'],
+    ...econ.map(x=>[x.code,x.cat,x.design,x.size,x.purch,Math.round(x.totalSpend),x.soldU,x.onlineU,x.offU,Math.round(x.rev),Math.round(x.landed),Math.round(x.margin)])]);
+
+  // SKU Master
+  add('SKU Master',[['SKU','Category','Design','Size','Cost','MRP','Weight(g)','Box dims','Offline twin'],
+    ...state.skus.map(s=>[s.code,s.cat,s.design,s.size,s.cost,s.mrp,s.weight,s.dims,s.offline])]);
+
+  add('Inventory',[['Date','Supplier','SKU','Units','Unit cost','GST%','Freight','Notes'],
+    ...state.inventory.map(r=>[r.date,r.supplier,r.sku,r.qty,r.unit,r.gst,r.freight,r.notes])]);
+
+  add('Inbound Logistics',[['Date','Courier','Cost','Notes'],
+    ...state.logistics.map(r=>[r.date,r.courier,r.cost,r.notes])]);
+
+  add('Shoots',[['Date','Studio','Total cost','SKUs covered','Per-SKU split','Notes'],
+    ...state.shoots.map(r=>[r.date,r.studio,r.cost,(r.skus||[]).join(', '),Math.round(r.perSku),r.notes])]);
+
+  add('GST',[['Date','Type','Invoice','Amount','Notes'],
+    ...state.gst.map(r=>[r.date,r.type,r.invoice,r.amount,r.notes])]);
+
+  add('Marketing',[['Date','Platform','Campaign','SKU tag','Spend','Impressions','Orders'],
+    ...state.marketing.map(r=>[r.date,r.platform,r.campaign,r.sku,r.spend,r.impr,r.orders])]);
+
+  add('Shopify Sales',[['Month','SKU','Units','Unit price','Line revenue'],
+    ...state.shopify.map(r=>[r.month,r.sku,r.qty,r.price,Math.round(r.qty*r.price)])]);
+
+  add('Outbound Shipping',[['Date','Order','SKU','Zone','Chargeable kg','Rate/kg','Charged','Actual','Net'],
+    ...state.shipping.map(r=>[r.date,r.order,r.sku,r.zone,r.wt,r.rate,r.charged,r.actual,Math.round(r.charged-r.actual)])]);
+
+  // Offline events — flattened to one row per SKU line
+  const offRows=[['Event','Date','City','Venue','Stall','Travel','Setup','SKU','Carried','Sold','Price','Line revenue','Notes']];
+  state.events.forEach(e=>(e.lines||[]).forEach(l=>offRows.push([e.name,e.date,e.city,e.venue,e.stall,e.travel,e.setup,l.sku,l.carried,l.sold,l.price,Math.round(l.sold*l.price),e.notes])));
+  add('Offline Events',offRows);
+
+  add('Instagram',[['Date','Followers','Following','Posts','Reels','Profile visits','Bio clicks'],
+    ...state.instagram.map(r=>[r.date,r.followers,r.following,r.posts,r.reels,r.visits,r.clicks])]);
+
+  add('Influencers',[['Handle','Niche','Their followers','Post date','Gifted SKUs','Product cost','Cash fee','Type','Reach','Code','Orders','Cost/order'],
+    ...state.influencers.map(r=>{const c=(r.productCost||0)+(r.fee||0);return [r.handle,r.niche,r.followers,r.date,(r.gifted||[]).join(', '),r.productCost,r.fee,r.type,r.reach,r.code,r.orders,r.orders?Math.round(c/r.orders):''];})]);
+
+  add('Other Expenses',[['Date','Category','Vendor','Amount','Notes'],
+    ...state.other.map(r=>[r.date,r.category,r.vendor,r.amount,r.notes])]);
+
+  XLSX.writeFile(wb,'Kritivan_Tracker_'+todayISO()+'.xlsx');
+  toast('Excel workbook downloaded');
+}
+
+/* ---------- Google Sheets sync ---------- */
+function openSync(){
+  const connected = !!state.syncUrl;
+  const body=`
+    <div class="note">Live sync needs a free Google Apps Script bridge on your Sheet — see the <b>kritivan-apps-script.gs</b> file and its setup steps. Paste the deployed Web App URL here.</div>
+    <div class="fg"><label>Web App URL <span class="opt">(ends in /exec)</span></label>
+      <input id="sy_url" value="${state.syncUrl||''}" placeholder="https://script.google.com/macros/s/AKfy.../exec"></div>
+    <label class="chk ${state.autoPush?'on':''}" style="margin-bottom:14px" onclick="this.classList.toggle('on')">
+      <input type="checkbox" id="sy_auto" ${state.autoPush?'checked':''} onclick="event.stopPropagation()"> Auto-push to Sheet after every save</label>
+    <div class="btn-row">
+      <button class="btn primary" onclick="saveSyncUrl()">Save settings</button>
+      <button class="btn madder" onclick="pushSheet(false)">⬆ Push app → Sheet</button>
+      <button class="btn ghost" onclick="pullSheet()">⬇ Pull Sheet → app</button>
+    </div>
+    <div class="help" style="margin-top:16px">
+      ${connected?'✅ A URL is saved.':'No URL saved yet.'}<br>
+      ⚠ These calls are blocked inside Claude's in-chat preview. <b>Download this app</b> and open the .html from your own device/phone — sync works there. Your Sheet then doubles as cloud backup.
+    </div>`;
+  openModal('☁ Google Sheets sync', body, `<button class="btn ghost" onclick="closeModal()">Close</button>`);
+}
+function saveSyncUrl(){
+  state.syncUrl=val('sy_url').trim();
+  state.autoPush=document.getElementById('sy_auto').checked;
+  try{ localStorage.setItem('kritivan_syncurl', state.syncUrl); }catch(e){}
+  save(); updateSyncUI(); toast('Sync settings saved'); openSync();
+}
+async function pushSheet(silent){
+  if(!state.syncUrl){ return toast('Paste your Web App URL first'); }
+  try{
+    await fetch(state.syncUrl,{method:'POST',mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(state)});
+    if(!silent) toast('Pushed to Google Sheets ✓');
+  }catch(e){ toast('Push failed — open the downloaded file & check the URL'); }
+}
+function pullSheet(){
+  if(!state.syncUrl){ return toast('Paste your Web App URL first'); }
+  const cb='__kv_'+uid();
+  const s=document.createElement('script');
+  const timeout=setTimeout(()=>{ toast('Pull timed out — check URL / deploy access'); cleanup(); },12000);
+  function cleanup(){ try{delete window[cb];}catch(e){} if(s.parentNode) s.remove(); clearTimeout(timeout); }
+  window[cb]=function(data){
+    try{
+      const url=state.syncUrl, auto=state.autoPush;
+      state=Object.assign(blank(), data||{});
+      state.syncUrl=url; state.autoPush=auto;
+      save(); renderAll(); toast('Pulled from Google Sheets ✓');
+    }catch(e){ toast('Pull parse error'); }
+    cleanup();
+  };
+  s.onerror=()=>{ toast('Pull failed — is it deployed for "Anyone"?'); cleanup(); };
+  s.src=state.syncUrl+(state.syncUrl.includes('?')?'&':'?')+'callback='+cb+'&t='+Date.now();
+  document.body.appendChild(s);
+}
+function isEmptyData(){
+  return ['inventory','logistics','shoots','gst','marketing','shopify','shipping','events','instagram','influencers','other']
+    .every(k=>!(state[k]&&state[k].length));
+}
+
+/* ---------- Shared CSV + image + bulk helpers ---------- */
+function splitCSV(l){ const out=[];let cur='',q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(ch==='"'){q=!q;}else if(ch===','&&!q){out.push(cur);cur='';}else cur+=ch;}out.push(cur);return out.map(s=>s.trim()); }
+function csvToObjects(text){
+  const lines=(text||'').trim().split(/\r?\n/).filter(l=>l.trim()); if(lines.length<2) return [];
+  const head=splitCSV(lines[0]).map(h=>h.trim().toLowerCase());
+  const out=[];
+  for(let i=1;i<lines.length;i++){ const c=splitCSV(lines[i]); const o={}; head.forEach((h,j)=>o[h]=(c[j]||'').trim()); out.push(o); }
+  return out;
+}
+
+/* image capture (camera or gallery), resized + compressed before storing */
+function captureBlock(id,label,current){
+  return `<div class="fg"><label>${label} <span class="opt">(optional)</span></label>
+    <div class="img-cap">
+      <div class="img-prev" id="${id}_prev">${current?`<img src="${current}">`:'Tap to add'}</div>
+      <div class="img-btns">
+        <label class="btn ghost sm">📷 Camera<input type="file" accept="image/*" capture="environment" hidden onchange="grabImg(this,'${id}')"></label>
+        <label class="btn ghost sm">🖼️ Gallery<input type="file" accept="image/*" hidden onchange="grabImg(this,'${id}')"></label>
+        <button type="button" class="btn ghost sm" onclick="clearImg('${id}')">Remove</button>
+      </div>
+    </div></div>`;
+}
+function grabImg(input,id){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const im=new Image();
+    im.onload=()=>{
+      const max = id.indexOf('rcpt')===0 ? 700 : 460;
+      let w=im.width,h=im.height; const sc=Math.min(1,max/Math.max(w,h));
+      w=Math.round(w*sc); h=Math.round(h*sc);
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(im,0,0,w,h);
+      const q = id.indexOf('rcpt')===0 ? 0.55 : 0.62;
+      const data=c.toDataURL('image/jpeg',q);
+      formExtra.img=formExtra.img||{}; formExtra.img[id]=data;
+      const p=document.getElementById(id+'_prev'); if(p) p.innerHTML=`<img src="${data}">`;
+    };
+    im.src=ev.target.result;
+  };
+  r.readAsDataURL(f);
+}
+function clearImg(id){ formExtra.img=formExtra.img||{}; formExtra.img[id]=''; const p=document.getElementById(id+'_prev'); if(p) p.innerHTML='Tap to add'; }
+function getImg(id,fallback){ return (formExtra.img&&formExtra.img[id]!==undefined)?formExtra.img[id]:(fallback||''); }
+
+/* ---------- Bulk upload (inventory + spends) ---------- */
+const BULK = {
+  inventory:{ headers:['date','supplier','sku','units','unitcost','gst','freight'],
+    sample:['2026-01-12','Jaipur Mills','BC-A-D','50','1450','5','2000'] },
+  marketing:{ headers:['date','platform','campaign','sku','spend','impressions','orders'],
+    sample:['2026-01-15','Meta Ads','Republic Day','BC-A-D','5000','120000','22'] },
+  other:{ headers:['date','category','vendor','amount','notes'],
+    sample:['2026-01-10','Packaging','BoxCo','3200','poly mailers'] }
+};
+function openBulk(){
+  currentForm='bulk'; formExtra={};
+  const body=`
+    <div class="note">Import many rows in one go. Pick a type, copy the template headers exactly, fill your rows, then paste or upload the CSV.</div>
+    <div class="fg"><label>What are you importing?</label>
+      <select id="b_target" onchange="bulkTpl()">
+        <option value="inventory">📦 Inventory purchases</option>
+        <option value="marketing">📣 Marketing spends</option>
+        <option value="other">📁 Other expenses</option>
+      </select></div>
+    <div class="fg"><label>Required columns</label><div class="tpl-box" id="b_tpl"></div></div>
+    <div class="btn-row" style="margin:0 0 14px">
+      <button class="btn ghost sm" onclick="bulkTemplate()">⬇ Download template CSV</button>
+      <label class="btn ghost sm">📁 Upload CSV file<input type="file" accept=".csv,text/csv" hidden onchange="bulkFile(this)"></label>
+    </div>
+    <div class="fg"><label>…or paste rows here <span class="opt">(include the header line)</span></label>
+      <textarea id="b_csv" style="min-height:130px;font-family:monospace;font-size:12px" oninput="bulkPreview()"></textarea></div>
+    <div id="b_out"></div>`;
+  openModal('⬆️ Bulk Upload', body, `<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="bulkSave()">Import all rows</button>`);
+  bulkTpl();
+}
+function bulkTpl(){
+  const cfg=BULK[val('b_target')];
+  document.getElementById('b_tpl').textContent = cfg.headers.join(',');
+  document.getElementById('b_out').innerHTML='';
+  const ta=document.getElementById('b_csv'); if(ta) ta.placeholder=cfg.headers.join(',')+'\n'+cfg.sample.join(',');
+}
+function bulkTemplate(){
+  const cfg=BULK[val('b_target')];
+  const csv=cfg.headers.join(',')+'\n'+cfg.sample.join(',')+'\n';
+  download('kritivan-'+val('b_target')+'-template.csv',csv,'text/csv'); toast('Template downloaded');
+}
+function bulkFile(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const r=new FileReader(); r.onload=e=>{ document.getElementById('b_csv').value=e.target.result; bulkPreview(); }; r.readAsText(f);
+}
+function bulkPreview(){
+  const target=val('b_target'); const rows=csvToObjects(val('b_csv'));
+  let unknown=0;
+  if(target==='inventory'||target==='marketing') rows.forEach(o=>{ if(o.sku && !skuByCode(o.sku.toUpperCase())) unknown++; });
+  document.getElementById('b_out').innerHTML = rows.length?
+    `<div class="calc-pill">${rows.length} row(s) ready${unknown?` · ⚠ ${unknown} reference an unknown SKU`:''}</div>`:
+    `<div class="help">Nothing parsed yet — make sure the first line is the header row.</div>`;
+}
+function bulkSave(){
+  const target=val('b_target'); const rows=csvToObjects(val('b_csv')); let n=0;
+  rows.forEach(o=>{
+    if(target==='inventory'){
+      if(!o.sku||!(+o.units)) return;
+      state.inventory.push({id:uid(),date:o.date||todayISO(),supplier:o.supplier||'',sku:(o.sku||'').toUpperCase(),
+        qty:+o.units||0,unit:+o.unitcost||0,gst:+o.gst||0,freight:+o.freight||0,notes:'bulk import'}); n++;
+    } else if(target==='marketing'){
+      if(!(+o.spend)) return;
+      state.marketing.push({id:uid(),date:o.date||todayISO(),platform:o.platform||'Other',campaign:o.campaign||'',
+        sku:(o.sku||'').toUpperCase(),spend:+o.spend||0,impr:+o.impressions||0,orders:+o.orders||0}); n++;
+    } else if(target==='other'){
+      if(!(+o.amount)) return;
+      state.other.push({id:uid(),date:o.date||todayISO(),category:o.category||'Misc',vendor:o.vendor||'',
+        amount:+o.amount||0,notes:o.notes||'bulk import'}); n++;
+    }
+  });
+  if(!n){ return toast('No valid rows found — check the columns'); }
+  toast(`Imported ${n} row(s) ✓`); finishSave();
+}
+
+/* ---------- Misc UI ---------- */
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1900); }
+function renderAll(){ renderDashboard(); renderDemand(); renderSocial(); renderSkus(); updateSyncUI(); }
+
+/* ---------- Navigation (sidebar shell) ---------- */
+function navigate(screen){
+  const btn=document.querySelector('#sideNav button[data-screen="'+screen+'"]');
+  document.querySelectorAll('#sideNav button').forEach(x=>x.classList.remove('active'));
+  if(btn){ btn.classList.add('active'); document.getElementById('pageTitle').innerHTML=btn.dataset.title; }
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById(screen); if(el) el.classList.add('active');
+  toggleNav(false);
+  window.scrollTo(0,0);
+}
+function toggleNav(open){
+  document.getElementById('sidebar').classList.toggle('open',open);
+  document.getElementById('backdrop').classList.toggle('show',open);
+}
+function goAdd(){ navigate('home'); }
+function updateSyncUI(){
+  const cloud=sbConfigured(), sheets=!!state.syncUrl, on=cloud||sheets;
+  const dot=document.getElementById('syncDot');
+  if(dot){ dot.classList.toggle('on',on); dot.title=cloud?'Supabase connected':(sheets?'Google Sheets connected':'Local only'); }
+  const hint=document.getElementById('syncHint'); if(hint) hint.textContent=sheets?'Connected ✓':'Not connected';
+  const sbHint=document.getElementById('sbHint'); if(sbHint) sbHint.textContent=cloud?'Connected ✓':'Not configured';
+  const sbInput=document.getElementById('sb_url'); if(sbInput && !sbInput.value){ try{ sbInput.value=localStorage.getItem('kritivan_sb_url')||''; }catch(e){} }
+}
+async function saveSbUrl(){
+  const url=val('sb_url').trim();
+  if(url && url.indexOf('http')!==0){ return toast('URL should start with https://'); }
+  try{ localStorage.setItem('kritivan_sb_url', url); }catch(e){}
+  initSupabase();
+  if(!sbConfigured()){ updateSyncUI(); return toast(url?'Could not connect — check the URL':'Cleared'); }
+  toast('Connecting & loading…');
+  const cloud=await cloudLoad();
+  if(cloud && Object.keys(cloud).length){ state=Object.assign(blank(), cloud); toast('Connected — loaded cloud data ✓'); }
+  else { await cloudSaveNow(); toast('Connected — cloud started from this device ✓'); }
+  updateSyncUI(); renderAll();
+}
+async function cloudSaveNow(){
+  if(!sb) return;
+  try{ await sb.from(SB_TABLE).upsert({ id:SB_WORKSPACE, data:state, updated_at:new Date().toISOString() }); }
+  catch(e){ console.warn(e); }
+}
+async function cloudPush(){
+  if(!sbConfigured()){ return toast('Connect a Supabase URL first'); }
+  await cloudSaveNow(); toast('Saved to cloud ✓');
+}
+async function cloudPull(){
+  if(!sbConfigured()){ return toast('Connect a Supabase URL first'); }
+  const cloud=await cloudLoad();
+  if(cloud && Object.keys(cloud).length){ state=Object.assign(blank(), cloud); save(); renderAll(); toast('Loaded from cloud ✓'); }
+  else toast('No cloud data yet');
+}
+function resetData(){
+  if(!confirm('Reset ALL data on this device? This restores the starting 12 SKUs and cannot be undone. Export or push to Sheets first.')) return;
+  const url=state.syncUrl, auto=state.autoPush;
+  state=blank(); state.syncUrl=url; state.autoPush=auto;
+  save(); renderAll(); navigate('dashboard'); toast('Workspace reset');
+}
+document.getElementById('sideNav').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return; navigate(b.dataset.screen);
+});
+
+/* ---------- Boot ---------- */
+(async function init(){
+  await load();
+  try{ if(!state.syncUrl){ const u=localStorage.getItem('kritivan_syncurl'); if(u) state.syncUrl=u; } }catch(e){}
+  initSupabase();
+  if(sbConfigured()){
+    const cloud = await cloudLoad();
+    if(cloud && Object.keys(cloud).length){
+      state = Object.assign(blank(), cloud);     // cloud is the source of truth
+    } else if(!isEmptyData()){
+      cloudSave();                               // first run: seed cloud from local
+    }
+  }
+  renderHome();
+  renderAll();
+  if(!sbConfigured() && state.syncUrl && isEmptyData()) pullSheet(); // fall back to Sheets only if no Supabase
+})();
+</script>
+</body>
+</html>
